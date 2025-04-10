@@ -54,6 +54,7 @@ class DataLoader:
         # Now write them out with an ISO 8601 "T" format:
         trips['tpep_pickup_datetime'] = trips['tpep_pickup_datetime'].dt.strftime('%Y-%m-%dT%H:%M:%S')
         trips['tpep_dropoff_datetime'] = trips['tpep_dropoff_datetime'].dt.strftime('%Y-%m-%dT%H:%M:%S')
+        print("Number of rows after filtering:", len(trips))
 
         # Then write to CSV...
         csv_filename = file_path.split(".")[0] + ".csv"
