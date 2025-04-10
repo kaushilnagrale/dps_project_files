@@ -89,7 +89,7 @@ class DataLoader:
 def main():
     # Simple approach: no retry loop, fail fast if something goes wrong
     try:
-        data_loader = DataLoader("bolt://localhost:7687", "neo4j", "project1phase1")
+        data_loader = DataLoader("neo4j://localhost:7687", "neo4j", "project1phase1")
         data_loader.load_transform_file("yellow_tripdata_2022-03.parquet")
         data_loader.close()
         print("Data loaded successfully.")
