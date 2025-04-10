@@ -1,15 +1,14 @@
-# data_loader.py
 import pyarrow.parquet as pq
 import pandas as pd
 from neo4j import GraphDatabase
-import time
+
 
 class DataLoader:
-
     def __init__(self, uri, user, password):
         """
         Connect to the Neo4j database and other init steps
         """
+        # Use bolt:// (direct mode) to avoid routing issues on a single-instance DB.
         self.driver = GraphDatabase.driver(uri, auth=(user, password), encrypted=False)
         self.driver.verify_connectivity()
 
@@ -21,17 +20,21 @@ class DataLoader:
 
     def load_transform_file(self, file_path):
         """
-        Load the parquet file and transform it into a csv file
-        Then load the csv file into neo4j
+        Load the parquet file, transform it, and use LOAD CSV in Neo4j.
         """
 
         # Read the parquet file
-        trips = pq.read_table(file_path)
-        trips = trips.to_pandas()
+        trips = pq.read_table(file_path).to_pandas()
 
-        # Some data cleaning and filtering
-        trips = trips[['tpep_pickup_datetime', 'tpep_dropoff_datetime',
-                       'PULocationID', 'DOLocationID', 'trip_distance', 'fare_amount']]
+        # Filter columns
+        trips = trips[[
+            'tpep_pickup_datetime',
+            'tpep_dropoff_datetime',
+            'PULocationID',
+            'DOLocationID',
+            'trip_distance',
+            'fare_amount'
+        ]]
 
         # Filter out to only those locationIDs in the "bronx" subset
         bronx = [
@@ -65,36 +68,31 @@ class DataLoader:
             """)
 
             # 2) Load CSV and create the graph
-            load_query = """
-            LOAD CSV WITH HEADERS FROM 'file:///%s' AS row
-            MERGE (start:Location {name: toInteger(row.PULocationID)})
-            MERGE (end:Location   {name: toInteger(row.DOLocationID)})
-            MERGE (start)-[t:TRIP {
+            load_query = f"""
+            LOAD CSV WITH HEADERS FROM 'file:///{csv_filename}' AS row
+            MERGE (start:Location {{name: toInteger(row.PULocationID)}})
+            MERGE (end:Location   {{name: toInteger(row.DOLocationID)}})
+            MERGE (start)-[t:TRIP {{
                 distance: toFloat(row.trip_distance),
                 fare: toFloat(row.fare_amount),
                 pickup_dt: datetime(row.tpep_pickup_datetime),
                 dropoff_dt: datetime(row.tpep_dropoff_datetime)
-            }]->(end)
-            """ % csv_filename
-
+            }}]->(end)
+            """
             session.run(load_query)
-
-    # end load_transform_file
 
 
 def main():
-    total_attempts = 10
-    attempt = 0
-    while attempt < total_attempts:
-        try:
-            data_loader = DataLoader("neo4j://localhost:7687", "neo4j", "project1phase1")
-            data_loader.load_transform_file("yellow_tripdata_2022-03.parquet")
-            data_loader.close()
-            attempt = total_attempts
-        except Exception as e:
-            print(f"(Attempt {attempt+1}/{total_attempts}) Error: ", e)
-            attempt += 1
-            time.sleep(10)
+    # Simple approach: no retry loop, fail fast if something goes wrong
+    try:
+        data_loader = DataLoader("bolt://localhost:7687", "neo4j", "project1phase1")
+        data_loader.load_transform_file("yellow_tripdata_2022-03.parquet")
+        data_loader.close()
+        print("Data loaded successfully.")
+    except Exception as e:
+        print("ERROR loading data:", e)
+        # Reraise the exception to fail the Docker build if data loading fails
+        raise
 
 
 if __name__ == "__main__":
