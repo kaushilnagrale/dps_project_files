@@ -47,14 +47,17 @@ class DataLoader:
         trips = trips[trips['trip_distance'] > 0.1]
         trips = trips[trips['fare_amount'] > 2.5]
 
-        # Convert date-time columns
-        trips['tpep_pickup_datetime'] = pd.to_datetime(trips['tpep_pickup_datetime'], format='%Y-%m-%d %H:%M:%S')
-        trips['tpep_dropoff_datetime'] = pd.to_datetime(trips['tpep_dropoff_datetime'], format='%Y-%m-%d %H:%M:%S')
+        # Convert to datetime objects:
+        trips['tpep_pickup_datetime'] = pd.to_datetime(trips['tpep_pickup_datetime'])
+        trips['tpep_dropoff_datetime'] = pd.to_datetime(trips['tpep_dropoff_datetime'])
 
-        # Save CSV to Neo4j's import folder so that LOAD CSV can read it
-        csv_filename = file_path.split(".")[0] + '.csv'   # e.g. "yellow_tripdata_2022-03.csv"
-        save_loc = "/var/lib/neo4j/import/" + csv_filename
-        trips.to_csv(save_loc, index=False)
+        # Now write them out with an ISO 8601 "T" format:
+        trips['tpep_pickup_datetime'] = trips['tpep_pickup_datetime'].dt.strftime('%Y-%m-%dT%H:%M:%S')
+        trips['tpep_dropoff_datetime'] = trips['tpep_dropoff_datetime'].dt.strftime('%Y-%m-%dT%H:%M:%S')
+
+        # Then write to CSV...
+        csv_filename = file_path.split(".")[0] + ".csv"
+        trips.to_csv("/var/lib/neo4j/import/" + csv_filename, index=False)
 
         # Now load the data into Neo4j
         with self.driver.session() as session:
