@@ -20,12 +20,8 @@ class Interface:
         """
         with self._driver.session() as session:
 
-            # 1) Drop any existing graph named 'myGraph' (optional safety)
             session.run("CALL gds.graph.drop('myGraph', false) YIELD graphName "
                         "RETURN graphName")
-
-            # 2) Create a fresh projection from the existing DB
-            #    Note that TRIP edges are presumably directed from :Location->:Location
             create_graph = """
             CALL gds.graph.project(
                 'myGraph',
@@ -44,9 +40,6 @@ class Interface:
             """ % weight_property
             session.run(create_graph)
 
-            # 3) Run pageRank in stream mode
-            #    We pass relationshipWeightProperty = weight_property
-            #    You may want a dampingFactor=0.85, or just let it default.
             query = f"""
             CALL gds.pageRank.stream('myGraph', {{
                 maxIterations: $maxIters,
@@ -57,10 +50,9 @@ class Interface:
             ORDER BY score DESC
             """
             results = session.run(query, maxIters=max_iterations, weightProp=weight_property)
-            records = results.data()  # e.g. [ { 'name': 159, 'score': 3.228...}, ... ]
+            records = results.data()  
 
-            # records are in descending order by PageRank:
-            # The first item is max, the last item is min
+
             if not records:
                 return []
 
@@ -99,14 +91,12 @@ class Interface:
             result = session.run(query, start_node=start_node, last_node=last_node)
             record = result.single()
             if not record:
-                # No path found
                 return []
 
-            # We have a list of location IDs in order, e.g. [159, 47, 78, 212]
+
             path_list = record["path"]
 
-            # Transform to the expected output format
-            # i.e. [ {"name": 159}, {"name": 47}, ... ]
+
             output_path = [{"name": loc} for loc in path_list]
 
             return [{"path": output_path}]
